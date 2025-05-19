@@ -1,0 +1,29 @@
+{
+  "tasks": [
+    {
+      "id": "task-1",
+      "content": "Create project documentation",
+      "status": "todo"
+    },
+    {
+      "id": "task-2",
+      "content": "Design user interface",
+      "status": "inProgress"
+    },
+    {
+      "id": "task-3",
+      "content": "Set up development environment",
+      "status": "done"
+    },
+    {
+      "id": "task-4",
+      "content": "Implement authentication",
+      "status": "todo"
+    },
+    {
+      "id": "task-5",
+      "content": "Write API endpoints",
+      "status": "inProgress"
+    }
+  ]
+}
