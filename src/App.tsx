@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import React, { useState, useEffect } from 'react';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { PlusCircle, Pencil, Trash2, GripVertical } from 'lucide-react';
+import { loadInitialTasks, saveTasks } from './utils/taskLoader';
 
 interface Task {
   id: string;
@@ -41,16 +42,27 @@ function App() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState('');
 
+  useEffect(() => {
+    const initializeTasks = async () => {
+      const loadedTasks = await loadInitialTasks();
+      setTasks(loadedTasks);
+    };
+    initializeTasks();
+  }, []);
+
   const addTask = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTask.trim()) return;
     
-    setTasks([...tasks, { 
+    const newTaskList = [...tasks, { 
       id: Date.now().toString(), 
       content: newTask,
       description: newDescription || undefined,
       status: selectedStatus
-    }]);
+    }];
+    
+    setTasks(newTaskList);
+    saveTasks(newTaskList);
     setNewTask('');
     setNewDescription('');
   };
@@ -65,14 +77,18 @@ function App() {
       deleteTask(id);
       return;
     }
-    setTasks(tasks.map(task => 
+    const updatedTasks = tasks.map(task => 
       task.id === id ? { ...task, content: editingContent } : task
-    ));
+    );
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
     setEditingId(null);
   };
 
   const deleteTask = (id: string) => {
-    setTasks(tasks.filter(task => task.id !== id));
+    const updatedTasks = tasks.filter(task => task.id !== id);
+    setTasks(updatedTasks);
+    saveTasks(updatedTasks);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent, task: Task) => {
@@ -85,30 +101,55 @@ function App() {
     }
   };
 
-  const onDragEnd = (result: any) => {
+  const onDragEnd = (result: DropResult) => {
     if (!result.destination) return;
 
     const { source, destination } = result;
     
-    const taskList = Array.from(tasks);
-    const [movedTask] = taskList.splice(source.index, 1);
+    // Don't do anything if dropped in the same place
+    if (
+      destination.droppableId === source.droppableId &&
+      destination.index === source.index
+    ) {
+      return;
+    }
+
+    // Create new array of all tasks
+    const allTasks = Array.from(tasks);
     
-    movedTask.status = destination.droppableId as Task['status'];
+    // Find the task we're dragging
+    const draggedTask = tasks.find(task => task.id === result.draggableId);
+    if (!draggedTask) return;
+
+    // Remove task from source
+    const sourceColumnTasks = allTasks.filter(task => task.status === source.droppableId);
+    sourceColumnTasks.splice(source.index, 1);
+
+    // Update task status
+    const updatedTask = {
+      ...draggedTask,
+      status: destination.droppableId as Task['status']
+    };
+
+    // Get destination column tasks
+    const destinationColumnTasks = allTasks.filter(task => task.status === destination.droppableId);
     
-    const sourceStatusTasks = taskList.filter(task => task.status === source.droppableId);
-    const destStatusTasks = taskList.filter(task => task.status === destination.droppableId);
-    
-    const remainingTasks = taskList.filter(
-      task => task.status !== source.droppableId && task.status !== destination.droppableId
-    );
-    
-    destStatusTasks.splice(destination.index, 0, movedTask);
-    
-    setTasks([
-      ...remainingTasks,
-      ...sourceStatusTasks,
-      ...destStatusTasks
-    ]);
+    // Insert task at new position
+    destinationColumnTasks.splice(destination.index, 0, updatedTask);
+
+    // Combine all tasks
+    const finalTasks = [
+      ...allTasks.filter(task => 
+        task.status !== source.droppableId && 
+        task.status !== destination.droppableId
+      ),
+      ...sourceColumnTasks,
+      ...destinationColumnTasks
+    ];
+
+    // Update state and save
+    setTasks(finalTasks);
+    saveTasks(finalTasks);
   };
 
   const getTasksByStatus = (status: Task['status']) => {
